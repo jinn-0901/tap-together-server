@@ -17,9 +17,9 @@ app.get("/", (req, res) => {
   res.send("Tap Together Server가 실행되었습니다.");
 });
 
-const kioskOwners = new Map(); // code → 키오스크 socket.id
-const remoteInRoom = new Map(); // code → 리모컨 socket.id
-const joinAttempts = new Map(); // socket.id → { count, resetAt }
+const kioskOwners = new Map();
+const remoteInRoom = new Map();
+const joinAttempts = new Map();
 
 const generateUniqueCode = () => {
   let code;
@@ -41,7 +41,6 @@ const leaveRemoteRoom = (socket, code) => {
 io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
-  // 키오스크가 새 코드를 요청함. 리모컨이 이미 붙어있으면 새 코드로 그대로 데려감(연결 유지)
   socket.on("request-kiosk-code", (previousCode) => {
     let carriedRemoteId = null;
 
@@ -58,7 +57,6 @@ io.on("connection", (socket) => {
     socket.data.kioskCode = code;
     socket.join(code);
 
-    // 붙어있던 리모컨이 있으면, 새 코드 방으로 그대로 옮겨서 연결을 유지시킴
     if (carriedRemoteId) {
       const remoteSocket = io.sockets.sockets.get(carriedRemoteId);
       if (remoteSocket) {
@@ -66,7 +64,7 @@ io.on("connection", (socket) => {
         remoteSocket.join(code);
         remoteSocket.data.remoteCode = code;
         remoteInRoom.set(code, carriedRemoteId);
-        remoteSocket.emit("kiosk-code-changed", { code }); // 리모컨에게 코드가 바뀌었다고 알림
+        remoteSocket.emit("kiosk-code-changed", { code });
       }
     }
 
@@ -86,24 +84,25 @@ io.on("connection", (socket) => {
     record.count += 1;
     joinAttempts.set(socket.id, record);
 
+    // 이제 한국어 문장 대신 "에러 코드"만 보냄 — 번역은 클라이언트가 알아서 함
     if (record.count > 10) {
-      socket.emit("join-error", "시도 횟수를 초과했어요. 잠시 후 다시 시도해주세요.");
+      socket.emit("join-error", "TOO_MANY_ATTEMPTS");
       return;
     }
 
     if (!/^\d{6}$/.test(code)) {
-      socket.emit("join-error", "잘못된 코드 형식이에요");
+      socket.emit("join-error", "INVALID_CODE_FORMAT");
       return;
     }
 
     if (!kioskOwners.has(code)) {
-      socket.emit("join-error", "존재하지 않는 코드예요");
+      socket.emit("join-error", "CODE_NOT_FOUND");
       return;
     }
 
     const existingRemote = remoteInRoom.get(code);
     if (existingRemote && existingRemote !== socket.id) {
-      socket.emit("join-error", "이미 다른 기기가 연결되어 있어요");
+      socket.emit("join-error", "ALREADY_CONNECTED");
       return;
     }
 
