@@ -12,80 +12,113 @@ const io = new Server(httpServer, {
 });
 
 app.get("/", (req, res) => {
-  res.send("Tag Together Server가 실행 중입니다.");
+  res.send("Tap Together Server가 실행되었습니다.");
 });
 
-// 지금 사용 중인 키오스크 코드들을 서버가 기억해둠
-const activeKioskCodes = new Set();
+// code(문자열) → 키오스크 소켓 id
+const kioskOwners = new Map();
+// code(문자열) → 리모컨 소켓 id (연결된 리모컨이 없으면 없음)
+const remoteInRoom = new Map();
 
 const generateUniqueCode = () => {
   let code;
   do {
     code = Math.floor(100000 + Math.random() * 900000).toString();
-  } while (activeKioskCodes.has(code)); // 이미 쓰이고 있으면 다시 뽑음
+  } while (kioskOwners.has(code));
   return code;
 };
 
 io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
-  // 키오스크가 코드를 요청함 (처음 켤 때, 새로고침 버튼, 만료돼서 갱신할 때 등)
+  // 키오스크가 코드를 요청함
   socket.on("request-kiosk-code", (previousCode) => {
-    // 이전에 쓰던 코드가 있으면 반납(다른 키오스크가 쓸 수 있게)
-    if (previousCode) {
-      activeKioskCodes.delete(previousCode);
+    // 이전 코드가 있으면 정리(반납)
+    if (previousCode && kioskOwners.get(previousCode) === socket.id) {
+      kioskOwners.delete(previousCode);
+      const remoteId = remoteInRoom.get(previousCode);
+      if (remoteId) {
+        io.to(remoteId).emit("kiosk-left");
+        remoteInRoom.delete(previousCode);
+      }
       socket.leave(previousCode);
     }
 
     const code = generateUniqueCode();
-    activeKioskCodes.add(code);
-    socket.data.kioskCode = code; // 이 소켓이 어떤 코드를 쓰고 있는지 기억
+    kioskOwners.set(code, socket.id);
+    socket.data.role = "kiosk";
+    socket.data.kioskCode = code;
     socket.join(code);
 
     socket.emit("kiosk-code-assigned", { code });
-    console.log(`새 코드 발급: ${code}`);
+    console.log(`새 코드 발급: ${code} (키오스크: ${socket.id})`);
   });
 
-  // 리모컨이 코드로 방에 참가
+  // 리모컨이 코드로 참가 시도
   socket.on("join-room", (code) => {
     if (!/^\d{6}$/.test(code)) {
       socket.emit("join-error", "잘못된 코드 형식이에요");
       return;
     }
 
-    const room = io.sockets.adapter.rooms.get(code);
-    const currentSize = room ? room.size : 0;
-    if (currentSize >= 2) {
+    // 이 코드로 실제 등록된 키오스크가 있는지 확인 (없는 코드 차단)
+    if (!kioskOwners.has(code)) {
+      socket.emit("join-error", "존재하지 않는 코드예요");
+      return;
+    }
+
+    // 이미 그 방에 리모컨이 연결되어 있으면 차단 (2명 초과 방지)
+    const existingRemote = remoteInRoom.get(code);
+    if (existingRemote && existingRemote !== socket.id) {
       socket.emit("join-error", "이미 다른 기기가 연결되어 있어요");
       return;
     }
 
+    remoteInRoom.set(code, socket.id);
+    socket.data.role = "remote";
+    socket.data.remoteCode = code;
     socket.join(code);
+
     socket.emit("joined", code);
     socket.to(code).emit("remote-joined");
-    console.log(`${socket.id}가 방 [${code}]에 참가함`);
+    console.log(`${socket.id}가 방 [${code}]에 리모컨으로 참가함`);
   });
 
   socket.on("toggle-feature", ({ code, featureId, on }) => {
-    if (socket.rooms.has(code)) {
+    if (remoteInRoom.get(code) === socket.id) {
       io.to(code).emit("feature-toggled", { featureId, on });
       console.log(`[${code}] ${featureId} → ${on ? "ON" : "OFF"}`);
     }
   });
 
   socket.on("set-language", ({ code, lang }) => {
-    if (socket.rooms.has(code)) {
+    if (remoteInRoom.get(code) === socket.id) {
       io.to(code).emit("language-changed", { lang });
       console.log(`[${code}] 언어 변경 → ${lang}`);
     }
   });
 
-  // 키오스크 연결이 끊기면 그 코드도 반납 (다른 키오스크가 쓸 수 있게)
   socket.on("disconnect", () => {
-    if (socket.data.kioskCode) {
-      activeKioskCodes.delete(socket.data.kioskCode);
-      console.log(`코드 반납됨: ${socket.data.kioskCode}`);
+    if (socket.data.role === "kiosk" && socket.data.kioskCode) {
+      const code = socket.data.kioskCode;
+      kioskOwners.delete(code);
+      const remoteId = remoteInRoom.get(code);
+      if (remoteId) {
+        io.to(remoteId).emit("kiosk-left");
+      }
+      remoteInRoom.delete(code);
+      console.log(`키오스크 연결 해제됨, 코드 반납: ${code}`);
     }
+
+    if (socket.data.role === "remote" && socket.data.remoteCode) {
+      const code = socket.data.remoteCode;
+      if (remoteInRoom.get(code) === socket.id) {
+        remoteInRoom.delete(code);
+        io.to(code).emit("remote-left"); // 키오스크에게 "리모컨 끊김" 알림
+        console.log(`리모컨 연결 해제됨: [${code}]`);
+      }
+    }
+
     console.log(`클라이언트 연결 해제됨: ${socket.id}`);
   });
 });
