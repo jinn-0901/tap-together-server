@@ -9,7 +9,6 @@ app.use(cors());
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*" },
-  // 연결이 끊긴 걸 더 빨리 감지해서, 불의의 종료(탭 강제 종료 등) 후에도 방이 빨리 비워지게 함
   pingInterval: 5000,
   pingTimeout: 5000,
 });
@@ -20,6 +19,7 @@ app.get("/", (req, res) => {
 
 const kioskOwners = new Map(); // code → 키오스크 socket.id
 const remoteInRoom = new Map(); // code → 리모컨 socket.id
+const joinAttempts = new Map(); // socket.id → { count, resetAt } — 코드 무차별 대입 방지용
 
 const generateUniqueCode = () => {
   let code;
@@ -29,7 +29,6 @@ const generateUniqueCode = () => {
   return code;
 };
 
-// 리모컨이 특정 코드 방을 실제로 떠나게 정리하는 공통 함수
 const leaveRemoteRoom = (socket, code) => {
   if (!code) return;
   if (remoteInRoom.get(code) === socket.id) {
@@ -64,6 +63,23 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join-room", (code) => {
+    // 같은 소켓이 1분 안에 너무 많이 시도하면 차단 (무차별 대입 방지)
+    const now = Date.now();
+    const record = joinAttempts.get(socket.id) || { count: 0, resetAt: now + 60000 };
+
+    if (now > record.resetAt) {
+      record.count = 0;
+      record.resetAt = now + 60000;
+    }
+
+    record.count += 1;
+    joinAttempts.set(socket.id, record);
+
+    if (record.count > 10) {
+      socket.emit("join-error", "시도 횟수를 초과했어요. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     if (!/^\d{6}$/.test(code)) {
       socket.emit("join-error", "잘못된 코드 형식이에요");
       return;
@@ -80,7 +96,6 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // 이 소켓이 이전에 다른 코드 방에 리모컨으로 있었으면 그 방부터 정리
     if (socket.data.remoteCode && socket.data.remoteCode !== code) {
       leaveRemoteRoom(socket, socket.data.remoteCode);
     }
@@ -95,7 +110,6 @@ io.on("connection", (socket) => {
     console.log(`${socket.id}가 방 [${code}]에 리모컨으로 참가함`);
   });
 
-  // 리모컨이 명시적으로 연결 해제 버튼을 눌렀을 때
   socket.on("leave-room", (code) => {
     leaveRemoteRoom(socket, code);
     socket.data.remoteCode = null;
@@ -116,9 +130,11 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 키오스크에서 일어난 행동을 연결된 리모컨에게 전달 (음성 안내용)
   socket.on("kiosk-activity", ({ code, message, langId }) => {
     if (kioskOwners.get(code) !== socket.id) return;
+    if (typeof message !== "string" || message.length === 0 || message.length > 200) return;
+    if (typeof langId !== "string" || langId.length > 10) return;
+
     const remoteId = remoteInRoom.get(code);
     if (remoteId) {
       io.to(remoteId).emit("kiosk-activity", { message, langId });
@@ -126,6 +142,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    joinAttempts.delete(socket.id); // 연결 끊기면 시도 기록도 정리
+
     if (socket.data.role === "kiosk" && socket.data.kioskCode) {
       const code = socket.data.kioskCode;
       kioskOwners.delete(code);
