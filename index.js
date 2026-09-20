@@ -12,7 +12,7 @@ const io = new Server(httpServer, {
 });
 
 app.get("/", (req, res) => {
-  res.send("Kiosk Bridge Server가 실행 중입니다.");
+  res.send("Tag Together Server가 실행 중입니다.");
 });
 
 // 지금 사용 중인 키오스크 코드들을 서버가 기억해둠
