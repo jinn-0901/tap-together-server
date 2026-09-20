@@ -12,7 +12,7 @@ const io = new Server(httpServer, {
 });
 
 app.get("/", (req, res) => {
-  res.send("Kiosk Bridge Server가 실행 중입니다.");
+  res.send("Tap Together Server가 실행 중입니다.");
 });
 
 io.on("connection", (socket) => {
