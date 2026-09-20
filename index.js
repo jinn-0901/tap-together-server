@@ -84,7 +84,6 @@ io.on("connection", (socket) => {
     record.count += 1;
     joinAttempts.set(socket.id, record);
 
-    // 이제 한국어 문장 대신 "에러 코드"만 보냄 — 번역은 클라이언트가 알아서 함
     if (record.count > 10) {
       socket.emit("join-error", "TOO_MANY_ATTEMPTS");
       return;
@@ -149,6 +148,22 @@ io.on("connection", (socket) => {
     if (remoteId) {
       io.to(remoteId).emit("kiosk-activity", { message, langId });
     }
+  });
+
+  // 결제 완료 시, 키오스크가 서버에게 "이 방의 리모컨 연결 끊어줘"라고 요청
+  socket.on("kiosk-reset", (code) => {
+    if (kioskOwners.get(code) !== socket.id) return;
+    const remoteId = remoteInRoom.get(code);
+    if (remoteId) {
+      io.to(remoteId).emit("kiosk-left");
+      const remoteSocket = io.sockets.sockets.get(remoteId);
+      if (remoteSocket) {
+        remoteSocket.leave(code);
+        remoteSocket.data.remoteCode = null;
+      }
+      remoteInRoom.delete(code);
+    }
+    console.log(`[${code}] 결제 완료로 리모컨 연결 강제 해제`);
   });
 
   socket.on("disconnect", () => {
