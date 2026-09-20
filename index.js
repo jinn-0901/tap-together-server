@@ -19,7 +19,7 @@ app.get("/", (req, res) => {
 
 const kioskOwners = new Map(); // code → 키오스크 socket.id
 const remoteInRoom = new Map(); // code → 리모컨 socket.id
-const joinAttempts = new Map(); // socket.id → { count, resetAt } — 코드 무차별 대입 방지용
+const joinAttempts = new Map(); // socket.id → { count, resetAt }
 
 const generateUniqueCode = () => {
   let code;
@@ -41,14 +41,14 @@ const leaveRemoteRoom = (socket, code) => {
 io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
+  // 키오스크가 새 코드를 요청함. 리모컨이 이미 붙어있으면 새 코드로 그대로 데려감(연결 유지)
   socket.on("request-kiosk-code", (previousCode) => {
+    let carriedRemoteId = null;
+
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
       kioskOwners.delete(previousCode);
-      const remoteId = remoteInRoom.get(previousCode);
-      if (remoteId) {
-        io.to(remoteId).emit("kiosk-left");
-        remoteInRoom.delete(previousCode);
-      }
+      carriedRemoteId = remoteInRoom.get(previousCode) || null;
+      remoteInRoom.delete(previousCode);
       socket.leave(previousCode);
     }
 
@@ -58,12 +58,23 @@ io.on("connection", (socket) => {
     socket.data.kioskCode = code;
     socket.join(code);
 
+    // 붙어있던 리모컨이 있으면, 새 코드 방으로 그대로 옮겨서 연결을 유지시킴
+    if (carriedRemoteId) {
+      const remoteSocket = io.sockets.sockets.get(carriedRemoteId);
+      if (remoteSocket) {
+        remoteSocket.leave(previousCode);
+        remoteSocket.join(code);
+        remoteSocket.data.remoteCode = code;
+        remoteInRoom.set(code, carriedRemoteId);
+        remoteSocket.emit("kiosk-code-changed", { code }); // 리모컨에게 코드가 바뀌었다고 알림
+      }
+    }
+
     socket.emit("kiosk-code-assigned", { code });
     console.log(`새 코드 발급: ${code} (키오스크: ${socket.id})`);
   });
 
   socket.on("join-room", (code) => {
-    // 같은 소켓이 1분 안에 너무 많이 시도하면 차단 (무차별 대입 방지)
     const now = Date.now();
     const record = joinAttempts.get(socket.id) || { count: 0, resetAt: now + 60000 };
 
@@ -142,7 +153,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    joinAttempts.delete(socket.id); // 연결 끊기면 시도 기록도 정리
+    joinAttempts.delete(socket.id);
 
     if (socket.data.role === "kiosk" && socket.data.kioskCode) {
       const code = socket.data.kioskCode;
