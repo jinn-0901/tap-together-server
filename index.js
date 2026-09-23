@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import { TRANSLATIONS } from "./translations.js";
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,13 @@ const io = new Server(httpServer, {
 
 app.get("/", (req, res) => {
   res.send("Tap Together Server가 실행되었습니다.");
+});
+
+// 번역 데이터 API — web 또는 app을 넘기면 해당 앱의 5개 언어 데이터를 전부 내려줌
+app.get("/translations/:target", (req, res) => {
+  const data = TRANSLATIONS[req.params.target];
+  if (!data) return res.status(404).json({ error: "not found" });
+  res.json(data);
 });
 
 const kioskOwners = new Map();
@@ -150,7 +158,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 결제 완료 시, 키오스크가 서버에게 "이 방의 리모컨 연결 끊어줘"라고 요청
   socket.on("kiosk-reset", (code) => {
     if (kioskOwners.get(code) !== socket.id) return;
     const remoteId = remoteInRoom.get(code);
