@@ -10,8 +10,8 @@ app.use(cors());
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*" },
-  pingInterval: 5000,
-  pingTimeout: 5000,
+  pingInterval: 25000,
+  pingTimeout: 20000,
 });
 
 app.get("/", (req, res) => {
