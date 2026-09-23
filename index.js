@@ -24,9 +24,9 @@ app.get("/translations/:target", (req, res) => {
   res.json(data);
 });
 
-const kioskOwners = new Map(); // code → 키오스크 socket.id
-const remoteInRoom = new Map(); // code → 리모컨 socket.id
-const joinAttempts = new Map(); // socket.id → { count, resetAt }
+const kioskOwners = new Map();
+const remoteInRoom = new Map();
+const joinAttempts = new Map();
 
 const generateUniqueCode = () => {
   let code;
@@ -45,7 +45,7 @@ const leaveRemoteRoom = (socket, code) => {
   }
 };
 
-// 코드가 바뀌거나 사라질 때, 붙어있던 리모컨을 명확히 끊어냄 (새 방으로 옮기지 않음)
+// ★ 이 함수가 io.on("connection", ...) 블록보다 반드시 위에 있어야 함
 const disconnectRemoteFromKiosk = (code) => {
   const remoteId = remoteInRoom.get(code);
   if (remoteId) {
@@ -62,11 +62,9 @@ const disconnectRemoteFromKiosk = (code) => {
 io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
-  // 키오스크가 새 코드를 요청함 (최초 발급, 수동 새로고침, 10분 만료, 결제 완료 후 전부 여기로 옴)
   socket.on("request-kiosk-code", (previousCode) => {
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
       kioskOwners.delete(previousCode);
-      // 코드가 바뀌면 붙어있던 리모컨은 무조건 끊음 (새 방으로 데려가지 않음 — 경합 방지)
       disconnectRemoteFromKiosk(previousCode);
       socket.leave(previousCode);
     }
@@ -159,14 +157,12 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 결제 완료 시 리모컨 연결 강제 해제
   socket.on("kiosk-reset", (code) => {
     if (kioskOwners.get(code) !== socket.id) return;
     disconnectRemoteFromKiosk(code);
     console.log(`[${code}] 결제 완료로 리모컨 연결 강제 해제`);
   });
 
-  // 수동 새로고침 버튼 전용
   socket.on("kiosk-manual-refresh", (code) => {
     if (kioskOwners.get(code) !== socket.id) return;
     disconnectRemoteFromKiosk(code);
