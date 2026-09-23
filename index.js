@@ -49,13 +49,11 @@ const leaveRemoteRoom = (socket, code) => {
 io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
-  socket.on("request-kiosk-code", (previousCode) => {
-    let carriedRemoteId = null;
-
+    socket.on("request-kiosk-code", (previousCode) => {
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
       kioskOwners.delete(previousCode);
-      carriedRemoteId = remoteInRoom.get(previousCode) || null;
-      remoteInRoom.delete(previousCode);
+      // 리모컨을 새 방으로 옮기지 않고 그냥 끊어냄 (새로고침 = 완전한 초기화)
+      disconnectRemoteFromKiosk(previousCode);
       socket.leave(previousCode);
     }
 
@@ -64,17 +62,6 @@ io.on("connection", (socket) => {
     socket.data.role = "kiosk";
     socket.data.kioskCode = code;
     socket.join(code);
-
-    if (carriedRemoteId) {
-      const remoteSocket = io.sockets.sockets.get(carriedRemoteId);
-      if (remoteSocket) {
-        remoteSocket.leave(previousCode);
-        remoteSocket.join(code);
-        remoteSocket.data.remoteCode = code;
-        remoteInRoom.set(code, carriedRemoteId);
-        remoteSocket.emit("kiosk-code-changed", { code });
-      }
-    }
 
     socket.emit("kiosk-code-assigned", { code });
     console.log(`새 코드 발급: ${code} (키오스크: ${socket.id})`);
