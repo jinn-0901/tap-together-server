@@ -12,6 +12,9 @@ const io = new Server(httpServer, {
   cors: { origin: "*" },
   pingInterval: 25000,
   pingTimeout: 20000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000, // 2분 안에 재연결되면 이전 상태 그대로 복구
+  },
 });
 
 app.get("/", (req, res) => {
@@ -22,7 +25,6 @@ app.get("/translations/:target", (req, res) => {
   const data = TRANSLATIONS[req.params.target];
   if (!data) return res.status(404).json({ error: "not found" });
 
-  // web이 메뉴 음성 인식을 하려면 app의 메뉴 이름 데이터가 필요해서 합쳐서 내려줌
   if (req.params.target === "web") {
     const merged = {};
     for (const langId of Object.keys(data)) {
@@ -73,7 +75,7 @@ const disconnectRemoteFromKiosk = (code) => {
 };
 
 io.on("connection", (socket) => {
-  console.log(`클라이언트 연결됨: ${socket.id}`);
+  console.log(`클라이언트 연결됨: ${socket.id} (복구됨: ${socket.recovered})`);
 
   socket.on("request-kiosk-code", (previousCode) => {
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
@@ -170,7 +172,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 리모컨이 음성으로 분석한 주문을 키오스크에 전달
   socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
     if (remoteInRoom.get(code) !== socket.id) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
