@@ -44,7 +44,7 @@ const kioskOwners = new Map();
 const remoteInRoom = new Map();
 const joinAttempts = new Map();
 
-const DISCONNECT_GRACE_MS = 15000; // 끊겨도 15초는 기다렸다가 진짜로 정리함 (탭 백그라운드 대비)
+const DISCONNECT_GRACE_MS = 40000; // 15초 → 40초로 늘림
 
 const generateUniqueCode = () => {
   let code;
