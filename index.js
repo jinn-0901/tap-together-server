@@ -21,6 +21,20 @@ app.get("/", (req, res) => {
 app.get("/translations/:target", (req, res) => {
   const data = TRANSLATIONS[req.params.target];
   if (!data) return res.status(404).json({ error: "not found" });
+
+  // web이 메뉴 음성 인식을 하려면 app의 메뉴 이름 데이터가 필요해서 합쳐서 내려줌
+  if (req.params.target === "web") {
+    const merged = {};
+    for (const langId of Object.keys(data)) {
+      merged[langId] = {
+        ...data[langId],
+        menu: TRANSLATIONS.app[langId]?.menu || {},
+        categories: TRANSLATIONS.app[langId]?.categories || {},
+      };
+    }
+    return res.json(merged);
+  }
+
   res.json(data);
 });
 
@@ -45,7 +59,6 @@ const leaveRemoteRoom = (socket, code) => {
   }
 };
 
-// ★ 이 함수가 io.on("connection", ...) 블록보다 반드시 위에 있어야 함
 const disconnectRemoteFromKiosk = (code) => {
   const remoteId = remoteInRoom.get(code);
   if (remoteId) {
@@ -155,6 +168,15 @@ io.on("connection", (socket) => {
     if (remoteId) {
       io.to(remoteId).emit("kiosk-activity", { message, langId });
     }
+  });
+
+  // 리모컨이 음성으로 분석한 주문을 키오스크에 전달
+  socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
+    if (remoteInRoom.get(code) !== socket.id) return;
+    if (typeof itemId !== "string" || itemId.length > 50) return;
+
+    io.to(code).emit("voice-order-received", { itemId, options, wantsToBuy });
+    console.log(`[${code}] 리모컨 음성 주문: ${itemId}`);
   });
 
   socket.on("kiosk-reset", (code) => {
