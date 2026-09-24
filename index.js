@@ -10,11 +10,6 @@ app.use(cors());
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: "*" },
-  pingInterval: 10000,
-  pingTimeout: 15000,
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000,
-  },
 });
 
 app.get("/", (req, res) => {
@@ -40,11 +35,9 @@ app.get("/translations/:target", (req, res) => {
   res.json(data);
 });
 
-const kioskOwners = new Map();
-const remoteInRoom = new Map();
-const joinAttempts = new Map();
-
-const DISCONNECT_GRACE_MS = 40000; // 15초 → 40초로 늘림
+const kioskOwners = new Map(); // code → 키오스크 socket.id
+const remoteInRoom = new Map(); // code → 리모컨 socket.id
+const joinAttempts = new Map(); // socket.id → { count, resetAt } — 코드 무차별 대입 방지
 
 const generateUniqueCode = () => {
   let code;
@@ -77,7 +70,7 @@ const disconnectRemoteFromKiosk = (code) => {
 };
 
 io.on("connection", (socket) => {
-  console.log(`클라이언트 연결됨: ${socket.id} (복구됨: ${socket.recovered})`);
+  console.log(`클라이언트 연결됨: ${socket.id}`);
 
   socket.on("request-kiosk-code", (previousCode) => {
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
@@ -96,12 +89,8 @@ io.on("connection", (socket) => {
     console.log(`새 코드 발급: ${code} (키오스크: ${socket.id})`);
   });
 
-  socket.on("check-kiosk-code", (code) => {
-    const isValid = kioskOwners.get(code) === socket.id;
-    socket.emit("kiosk-code-check-result", { valid: isValid });
-  });
-
   socket.on("join-room", (code) => {
+    // 같은 소켓이 1분 안에 너무 많이 시도하면 차단 (무차별 대입 방지)
     const now = Date.now();
     const record = joinAttempts.get(socket.id) || { count: 0, resetAt: now + 60000 };
 
@@ -168,6 +157,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 키오스크에서 일어난 행동을 연결된 리모컨에게 전달 (음성 안내용) — 형식/길이 검증 포함
   socket.on("kiosk-activity", ({ code, message, langId }) => {
     if (kioskOwners.get(code) !== socket.id) return;
     if (typeof message !== "string" || message.length === 0 || message.length > 200) return;
@@ -179,6 +169,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 리모컨이 음성으로 분석한 주문을 키오스크에 전달
   socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
     if (remoteInRoom.get(code) !== socket.id) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
@@ -199,40 +190,23 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 수동 새로고침으로 리모컨 연결 강제 해제`);
   });
 
-  // 끊기자마자 바로 정리하지 않고, 유예 시간(15초) 동안 다시 연결되나 지켜봄
-  // 탭이 백그라운드로 가서 잠깐 핑을 놓친 경우, 다시 돌아오면 아무 일도 없었던 것처럼 이어지게 하기 위함
   socket.on("disconnect", () => {
-    const role = socket.data.role;
-    const kioskCode = socket.data.kioskCode;
-    const remoteCode = socket.data.remoteCode;
     joinAttempts.delete(socket.id);
 
-    if (role === "kiosk" && kioskCode) {
-      setTimeout(() => {
-        const stillConnected = io.sockets.sockets.get(socket.id)?.connected;
-        if (stillConnected) return; // 같은 소켓으로 이미 재연결됨 → 정리할 필요 없음
-        if (kioskOwners.get(kioskCode) !== socket.id) return; // 이미 다른 걸로 대체됨
-
-        kioskOwners.delete(kioskCode);
-        const remoteId = remoteInRoom.get(kioskCode);
-        if (remoteId) {
-          io.to(remoteId).emit("kiosk-left");
-        }
-        remoteInRoom.delete(kioskCode);
-        console.log(`키오스크 연결 해제됨(유예 종료), 코드 반납: ${kioskCode}`);
-      }, DISCONNECT_GRACE_MS);
+    if (socket.data.role === "kiosk" && socket.data.kioskCode) {
+      const code = socket.data.kioskCode;
+      kioskOwners.delete(code);
+      const remoteId = remoteInRoom.get(code);
+      if (remoteId) {
+        io.to(remoteId).emit("kiosk-left");
+      }
+      remoteInRoom.delete(code);
+      console.log(`키오스크 연결 해제됨, 코드 반납: ${code}`);
     }
 
-    if (role === "remote" && remoteCode) {
-      setTimeout(() => {
-        const stillConnected = io.sockets.sockets.get(socket.id)?.connected;
-        if (stillConnected) return;
-        if (remoteInRoom.get(remoteCode) !== socket.id) return;
-
-        remoteInRoom.delete(remoteCode);
-        io.to(remoteCode).emit("remote-left");
-        console.log(`리모컨 연결 해제됨(유예 종료): [${remoteCode}]`);
-      }, DISCONNECT_GRACE_MS);
+    if (socket.data.role === "remote" && socket.data.remoteCode) {
+      leaveRemoteRoom(socket, socket.data.remoteCode);
+      console.log(`리모컨 연결 해제됨(비정상 종료 포함)`);
     }
 
     console.log(`클라이언트 연결 해제됨: ${socket.id}`);
