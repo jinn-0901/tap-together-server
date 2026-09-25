@@ -23,6 +23,7 @@ const ORDER_UI_KEYS = [
   "whipLabel", "whipNone", "whipAdd",
   "hotIceLabel", "hotOption", "iceOption",
   "addToCartBtn", "closeBtn",
+  "cartTitle", "clearBtn", "cartEmpty", "totalCountLabel", "checkoutBtn",
 ];
 
 app.get("/translations/:target", (req, res) => {
@@ -203,6 +204,8 @@ io.on("connection", (socket) => {
         hasDirect: !!slots.direct,
         hasShared: !!slots.shared,
       });
+      // 새로 참가한 리모컨에게 현재 장바구니 상태를 즉시 요청해서 보내줌
+      io.to(kioskSocketId).emit("request-cart-state-for-new-remote");
     }
 
     console.log(`${socket.id}가 방 [${code}]에 ${slotKey === "shared" ? "공유 참가자" : "직접 연결자"}로 참가함`);
@@ -240,10 +243,11 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("cart-updated", ({ code, summaryText }) => {
+  // 키오스크가 장바구니 배열 전체를 보내면 리모컨(들)에게 그대로 전달
+  socket.on("cart-state-updated", ({ code, cart }) => {
     if (kioskOwners.get(code) !== socket.id) return;
-    if (typeof summaryText !== "string" || summaryText.length > 300) return;
-    io.to(code).emit("cart-summary-updated", { summaryText });
+    if (!Array.isArray(cart) || cart.length > 50) return;
+    io.to(code).emit("cart-state-updated", { cart });
   });
 
   socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
@@ -263,7 +267,37 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨 화면 주문: ${itemId}`);
   });
 
-  // 리모컨이 먹고가기/포장까지 정해서 결제를 요청 — 키오스크는 선택/처리중 단계 없이 바로 완료 처리
+  // 리모컨에서 수량 조절/삭제/전체비우기 요청 — 키오스크에게 그대로 전달
+  socket.on("remote-change-qty", ({ code, cartId, delta }) => {
+    if (!isRemoteOfRoom(code, socket.id)) return;
+    if (typeof cartId !== "string" || cartId.length > 100) return;
+    if (delta !== 1 && delta !== -1) return;
+
+    const kioskSocketId = kioskOwners.get(code);
+    if (kioskSocketId) {
+      io.to(kioskSocketId).emit("cart-change-qty-requested", { cartId, delta });
+    }
+  });
+
+  socket.on("remote-remove-item", ({ code, cartId }) => {
+    if (!isRemoteOfRoom(code, socket.id)) return;
+    if (typeof cartId !== "string" || cartId.length > 100) return;
+
+    const kioskSocketId = kioskOwners.get(code);
+    if (kioskSocketId) {
+      io.to(kioskSocketId).emit("cart-remove-item-requested", { cartId });
+    }
+  });
+
+  socket.on("remote-clear-cart", (code) => {
+    if (!isRemoteOfRoom(code, socket.id)) return;
+
+    const kioskSocketId = kioskOwners.get(code);
+    if (kioskSocketId) {
+      io.to(kioskSocketId).emit("cart-clear-requested");
+    }
+  });
+
   socket.on("remote-checkout-request", ({ code, dineType }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (dineType !== "dine-in" && dineType !== "takeout") return;
