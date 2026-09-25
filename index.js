@@ -24,6 +24,7 @@ const ORDER_UI_KEYS = [
   "hotIceLabel", "hotOption", "iceOption",
   "addToCartBtn", "closeBtn",
   "cartTitle", "clearBtn", "cartEmpty", "totalCountLabel", "checkoutBtn",
+  "dineTypeTitle", "dineIn", "takeout", "orderSectionTitle",
 ];
 
 app.get("/translations/:target", (req, res) => {
@@ -204,7 +205,6 @@ io.on("connection", (socket) => {
         hasDirect: !!slots.direct,
         hasShared: !!slots.shared,
       });
-      // 새로 참가한 리모컨에게 현재 장바구니 상태를 즉시 요청해서 보내줌
       io.to(kioskSocketId).emit("request-cart-state-for-new-remote");
     }
 
@@ -243,7 +243,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 키오스크가 장바구니 배열 전체를 보내면 리모컨(들)에게 그대로 전달
   socket.on("cart-state-updated", ({ code, cart }) => {
     if (kioskOwners.get(code) !== socket.id) return;
     if (!Array.isArray(cart) || cart.length > 50) return;
@@ -267,7 +266,6 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨 화면 주문: ${itemId}`);
   });
 
-  // 리모컨에서 수량 조절/삭제/전체비우기 요청 — 키오스크에게 그대로 전달
   socket.on("remote-change-qty", ({ code, cartId, delta }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (typeof cartId !== "string" || cartId.length > 100) return;
