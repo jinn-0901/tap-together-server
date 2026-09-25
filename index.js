@@ -263,14 +263,16 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨 화면 주문: ${itemId}`);
   });
 
-  // 리모컨에서 "결제하기" 누르면 → 키오스크에게 결제 단계로 넘어가라고 알림
-  socket.on("remote-checkout-request", (code) => {
+  // 리모컨이 먹고가기/포장까지 정해서 결제를 요청 — 키오스크는 선택/처리중 단계 없이 바로 완료 처리
+  socket.on("remote-checkout-request", ({ code, dineType }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (dineType !== "dine-in" && dineType !== "takeout") return;
+
     const kioskSocketId = kioskOwners.get(code);
     if (kioskSocketId) {
-      io.to(kioskSocketId).emit("checkout-requested-by-remote");
+      io.to(kioskSocketId).emit("checkout-requested-by-remote", { dineType });
     }
-    console.log(`[${code}] 리모컨이 결제 시작 요청`);
+    console.log(`[${code}] 리모컨이 결제 요청 (${dineType})`);
   });
 
   socket.on("kiosk-reset", (code) => {
