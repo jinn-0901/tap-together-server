@@ -16,7 +16,6 @@ app.get("/", (req, res) => {
   res.send("Tap Together Server가 실행되었습니다.");
 });
 
-// web이 메뉴 주문 UI를 그리려면 app 쪽의 메뉴/옵션 문구가 필요해서 합쳐서 내려줌
 const ORDER_UI_KEYS = [
   "menu", "categories",
   "sizeLabel", "sizeRegular", "sizeLarge",
@@ -47,12 +46,9 @@ app.get("/translations/:target", (req, res) => {
   res.json(data);
 });
 
-const kioskOwners = new Map(); // code → 키오스크 socket.id
-
-// code → { direct: socket.id | null, shared: socket.id | null }
+const kioskOwners = new Map();
 const roomSlots = new Map();
-
-const joinAttempts = new Map(); // socket.id → { count, resetAt }
+const joinAttempts = new Map();
 
 const generateUniqueCode = () => {
   let code;
@@ -75,7 +71,6 @@ const getVoiceTarget = (code) => {
   return slots.direct || slots.shared || null;
 };
 
-// 이 소켓이 이 코드 방의 직접 연결자 또는 공유 참가자인지 확인
 const isRemoteOfRoom = (code, socketId) => {
   const slots = roomSlots.get(code);
   return !!(slots && (slots.direct === socketId || slots.shared === socketId));
@@ -251,7 +246,6 @@ io.on("connection", (socket) => {
     io.to(code).emit("cart-summary-updated", { summaryText });
   });
 
-  // 음성으로 인식한 주문
   socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
@@ -260,7 +254,6 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨 음성 주문: ${itemId}`);
   });
 
-  // 리모컨 화면에서 버튼으로 직접 고른 주문 — 옵션을 이미 다 골랐으므로 항상 바로 장바구니에 담김
   socket.on("remote-menu-order", ({ code, itemId, options }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
@@ -268,6 +261,16 @@ io.on("connection", (socket) => {
 
     io.to(code).emit("voice-order-received", { itemId, options, wantsToBuy: true });
     console.log(`[${code}] 리모컨 화면 주문: ${itemId}`);
+  });
+
+  // 리모컨에서 "결제하기" 누르면 → 키오스크에게 결제 단계로 넘어가라고 알림
+  socket.on("remote-checkout-request", (code) => {
+    if (!isRemoteOfRoom(code, socket.id)) return;
+    const kioskSocketId = kioskOwners.get(code);
+    if (kioskSocketId) {
+      io.to(kioskSocketId).emit("checkout-requested-by-remote");
+    }
+    console.log(`[${code}] 리모컨이 결제 시작 요청`);
   });
 
   socket.on("kiosk-reset", (code) => {
