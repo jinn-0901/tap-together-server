@@ -269,6 +269,9 @@ io.on("connection", (socket) => {
   socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
+    // options가 null/객체가 아니면(예: 위조된 payload) 그대로 흘려보내지 않음 —
+    // 키오스크 쪽 computeUnitPrice(item, options)가 options.size 등을 읽다가 죽을 수 있음
+    if (typeof options !== "object" || options === null) return;
 
     io.to(code).emit("voice-order-received", { itemId, options, wantsToBuy });
     console.log(`[${code}] 리모컨 음성 주문: ${itemId}`);
