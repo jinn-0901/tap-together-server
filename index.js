@@ -2,10 +2,20 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import { TRANSLATIONS } from "./translations.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.use(cors());
+
+// 쉬운 화면 모드에서 보여줄 실제 메뉴 사진 (public/menu-images/<메뉴id>.jpg)
+app.use(
+  "/menu-images",
+  express.static(path.join(__dirname, "public/menu-images"), { maxAge: "1d" })
+);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
