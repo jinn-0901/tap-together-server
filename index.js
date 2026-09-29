@@ -67,10 +67,11 @@ const getSlots = (code) => {
   return roomSlots.get(code);
 };
 
+// 음성 안내는 직접 연결자에게만 보냄 — 공유 참가자만 있으면 대상 없음(null)으로 반환해서 키오스크가 직접 말하게 함
 const getVoiceTarget = (code) => {
   const slots = roomSlots.get(code);
   if (!slots) return null;
-  return slots.direct || slots.shared || null;
+  return slots.direct || null;
 };
 
 const isRemoteOfRoom = (code, socketId) => {
