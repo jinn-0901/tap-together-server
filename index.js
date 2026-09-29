@@ -61,6 +61,32 @@ app.get("/translations/:target", (req, res) => {
 const kioskOwners = new Map();
 const roomSlots = new Map();
 const joinAttempts = new Map();
+const rateLimitBuckets = new Map();
+
+// 이벤트별로 한 소켓이 너무 자주 보내면 막음 (도배/스팸 방지). true면 이번 요청은 거부.
+const isRateLimited = (socket, eventName, max, windowMs) => {
+  const key = `${socket.id}:${eventName}`;
+  const now = Date.now();
+  const record = rateLimitBuckets.get(key) || { count: 0, resetAt: now + windowMs };
+
+  if (now > record.resetAt) {
+    record.count = 0;
+    record.resetAt = now + windowMs;
+  }
+
+  record.count += 1;
+  rateLimitBuckets.set(key, record);
+  return record.count > max;
+};
+
+const clearRateLimitBucketsFor = (socketId) => {
+  for (const key of rateLimitBuckets.keys()) {
+    if (key.startsWith(`${socketId}:`)) rateLimitBuckets.delete(key);
+  }
+};
+
+const SUPPORTED_LANGS = new Set(Object.keys(TRANSLATIONS.app));
+const KNOWN_FEATURE_IDS = new Set(["easy-mode", "voice", "large-text", "high-contrast", "voice-guide"]);
 
 const generateUniqueCode = () => {
   let code;
@@ -231,18 +257,26 @@ io.on("connection", (socket) => {
 
   socket.on("toggle-feature", ({ code, featureId, on }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "toggle-feature", 20, 5000)) return;
+    if (!KNOWN_FEATURE_IDS.has(featureId)) return;
+    if (typeof on !== "boolean") return;
+
     io.to(code).emit("feature-toggled", { featureId, on });
     console.log(`[${code}] ${featureId} → ${on ? "ON" : "OFF"}`);
   });
 
   socket.on("set-language", ({ code, lang }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "set-language", 20, 5000)) return;
+    if (!SUPPORTED_LANGS.has(lang)) return;
+
     io.to(code).emit("language-changed", { lang });
     console.log(`[${code}] 언어 변경 → ${lang}`);
   });
 
   socket.on("kiosk-activity", ({ code, message, langId }) => {
     if (kioskOwners.get(code) !== socket.id) return;
+    if (isRateLimited(socket, "kiosk-activity", 60, 5000)) return;
     if (typeof message !== "string" || message.length === 0 || message.length > 200) return;
     if (typeof langId !== "string" || langId.length > 10) return;
 
@@ -260,14 +294,28 @@ io.on("connection", (socket) => {
     }
   });
 
+  // cart-state-updated로 넘어온 항목 하나하나가 제대로 된 모양인지 확인
+  // (키오스크가 보내는 값이라 신뢰하긴 하지만, 방어적으로 한 번 더 걸러냄)
+  const isValidCartItem = (item) =>
+    item && typeof item === "object" &&
+    typeof item.cartId === "string" && item.cartId.length <= 100 &&
+    typeof item.id === "string" && item.id.length <= 50 &&
+    Number.isInteger(item.qty) && item.qty >= 1 && item.qty <= 99 &&
+    typeof item.unitPrice === "number" && Number.isFinite(item.unitPrice) && item.unitPrice >= 0 &&
+    typeof item.options === "object" && item.options !== null;
+
   socket.on("cart-state-updated", ({ code, cart }) => {
     if (kioskOwners.get(code) !== socket.id) return;
+    if (isRateLimited(socket, "cart-state-updated", 30, 5000)) return;
     if (!Array.isArray(cart) || cart.length > 50) return;
+    if (!cart.every(isValidCartItem)) return;
+
     io.to(code).emit("cart-state-updated", { cart });
   });
 
   socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "remote-voice-order", 15, 5000)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
     // options가 null/객체가 아니면(예: 위조된 payload) 그대로 흘려보내지 않음 —
     // 키오스크 쪽 computeUnitPrice(item, options)가 options.size 등을 읽다가 죽을 수 있음
@@ -279,6 +327,7 @@ io.on("connection", (socket) => {
 
   socket.on("remote-menu-order", ({ code, itemId, options }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "remote-menu-order", 15, 5000)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
     if (typeof options !== "object" || options === null) return;
 
@@ -288,6 +337,7 @@ io.on("connection", (socket) => {
 
   socket.on("remote-change-qty", ({ code, cartId, delta }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "remote-change-qty", 30, 5000)) return;
     if (typeof cartId !== "string" || cartId.length > 100) return;
     if (delta !== 1 && delta !== -1) return;
 
@@ -299,6 +349,7 @@ io.on("connection", (socket) => {
 
   socket.on("remote-remove-item", ({ code, cartId }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "remote-remove-item", 30, 5000)) return;
     if (typeof cartId !== "string" || cartId.length > 100) return;
 
     const kioskSocketId = kioskOwners.get(code);
@@ -309,6 +360,7 @@ io.on("connection", (socket) => {
 
   socket.on("remote-clear-cart", (code) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "remote-clear-cart", 10, 5000)) return;
 
     const kioskSocketId = kioskOwners.get(code);
     if (kioskSocketId) {
@@ -318,6 +370,7 @@ io.on("connection", (socket) => {
 
   socket.on("remote-checkout-request", ({ code, dineType }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    if (isRateLimited(socket, "remote-checkout-request", 10, 5000)) return;
     if (dineType !== "dine-in" && dineType !== "takeout") return;
 
     const kioskSocketId = kioskOwners.get(code);
@@ -341,6 +394,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     joinAttempts.delete(socket.id);
+    clearRateLimitBucketsFor(socket.id);
 
     if (socket.data.role === "kiosk" && socket.data.kioskCode) {
       const code = socket.data.kioskCode;
