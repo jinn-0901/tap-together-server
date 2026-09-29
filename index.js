@@ -8,8 +8,24 @@ import { TRANSLATIONS } from "./translations.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// 어떤 사이트에서 이 서버에 접속할 수 있는지 제한. 배포된 프론트 주소를 Render 환경변수
+// CORS_ALLOWED_ORIGINS에 콤마로 구분해서 넣으면 그 주소들만 허용됨 (예: "https://tap-together-app.vercel.app,https://tap-together-web.vercel.app").
+// 설정 안 하면 지금처럼 전체 허용("*")으로 동작해서 기존 배포가 깨지지 않음.
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const corsOriginCheck =
+  ALLOWED_ORIGINS.length > 0
+    ? (origin, callback) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+        callback(new Error("CORS로 차단된 요청"));
+      }
+    : "*";
+
 const app = express();
-app.use(cors());
+app.use(cors({ origin: corsOriginCheck }));
 
 // 쉬운 화면 모드에서 보여줄 실제 메뉴 사진 (public/menu-images/<메뉴id>.jpg)
 app.use(
@@ -19,7 +35,27 @@ app.use(
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*" },
+  cors: { origin: corsOriginCheck },
+});
+
+// 핸들러 하나에서 예외가 터져도 서버 전체(=다른 모든 키오스크·리모컨)가
+// 같이 죽지 않도록 모든 소켓 이벤트 핸들러를 이걸로 감쌈
+const safeOn = (socket, eventName, handler) => {
+  socket.on(eventName, (...args) => {
+    try {
+      handler(...args);
+    } catch (err) {
+      console.error(`[${eventName}] 핸들러 오류:`, err);
+    }
+  });
+};
+
+// 그래도 혹시 핸들러 밖(비동기 콜백 등)에서 뭔가 새면 로그만 남기고 프로세스는 살려둠
+process.on("uncaughtException", (err) => {
+  console.error("처리 안 된 예외:", err);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("처리 안 된 프로미스 거부:", err);
 });
 
 app.get("/", (req, res) => {
@@ -61,7 +97,42 @@ app.get("/translations/:target", (req, res) => {
 const kioskOwners = new Map();
 const roomSlots = new Map();
 const joinAttempts = new Map();
+const ipJoinAttempts = new Map();
 const rateLimitBuckets = new Map();
+
+// join-room 제한(joinAttempts)은 소켓 하나당이라 재연결/여러 탭으로 우회하면
+// 6자리 코드를 무한정 시도해볼 수 있음 — 같은 IP 기준으로도 한 번 더 막아서
+// 소켓을 계속 새로 만들어도 전체 시도 횟수 자체를 제한함
+const getClientIp = (socket) => {
+  const forwarded = socket.handshake.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.length > 0) {
+    return forwarded.split(",")[0].trim();
+  }
+  return socket.handshake.address || "unknown";
+};
+
+const isIpJoinLimited = (ip) => {
+  const now = Date.now();
+  const windowMs = 5 * 60 * 1000;
+  const record = ipJoinAttempts.get(ip) || { count: 0, resetAt: now + windowMs };
+
+  if (now > record.resetAt) {
+    record.count = 0;
+    record.resetAt = now + windowMs;
+  }
+
+  record.count += 1;
+  ipJoinAttempts.set(ip, record);
+  return record.count > 60;
+};
+
+// 오래된 IP 기록이 쌓이기만 하는 걸 막기 위해 주기적으로 청소
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of ipJoinAttempts.entries()) {
+    if (now > record.resetAt) ipJoinAttempts.delete(ip);
+  }
+}, 10 * 60 * 1000).unref?.();
 
 // 이벤트별로 한 소켓이 너무 자주 보내면 막음 (도배/스팸 방지). true면 이번 요청은 거부.
 const isRateLimited = (socket, eventName, max, windowMs) => {
@@ -171,7 +242,7 @@ const disconnectAllRemotesFromKiosk = (code) => {
 io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
-  socket.on("request-kiosk-code", (previousCode) => {
+  safeOn(socket, "request-kiosk-code", (previousCode) => {
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
       kioskOwners.delete(previousCode);
       disconnectAllRemotesFromKiosk(previousCode);
@@ -188,7 +259,12 @@ io.on("connection", (socket) => {
     console.log(`새 코드 발급: ${code} (키오스크: ${socket.id})`);
   });
 
-  socket.on("join-room", (code, asShared) => {
+  safeOn(socket, "join-room", (code, asShared) => {
+    if (isIpJoinLimited(getClientIp(socket))) {
+      socket.emit("join-error", "TOO_MANY_ATTEMPTS");
+      return;
+    }
+
     const now = Date.now();
     const record = joinAttempts.get(socket.id) || { count: 0, resetAt: now + 60000 };
 
@@ -248,14 +324,14 @@ io.on("connection", (socket) => {
     console.log(`${socket.id}가 방 [${code}]에 ${slotKey === "shared" ? "공유 참가자" : "직접 연결자"}로 참가함`);
   });
 
-  socket.on("leave-room", (code) => {
+  safeOn(socket, "leave-room", (code) => {
     leaveSlot(socket, code);
     socket.data.remoteCode = null;
     socket.data.remoteRole = null;
     console.log(`${socket.id}가 방 [${code}]에서 스스로 나감`);
   });
 
-  socket.on("toggle-feature", ({ code, featureId, on }) => {
+  safeOn(socket, "toggle-feature", ({ code, featureId, on }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "toggle-feature", 20, 5000)) return;
     if (!KNOWN_FEATURE_IDS.has(featureId)) return;
@@ -265,7 +341,7 @@ io.on("connection", (socket) => {
     console.log(`[${code}] ${featureId} → ${on ? "ON" : "OFF"}`);
   });
 
-  socket.on("set-language", ({ code, lang }) => {
+  safeOn(socket, "set-language", ({ code, lang }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "set-language", 20, 5000)) return;
     if (!SUPPORTED_LANGS.has(lang)) return;
@@ -274,7 +350,7 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 언어 변경 → ${lang}`);
   });
 
-  socket.on("kiosk-activity", ({ code, message, langId }) => {
+  safeOn(socket, "kiosk-activity", ({ code, message, langId }) => {
     if (kioskOwners.get(code) !== socket.id) return;
     if (isRateLimited(socket, "kiosk-activity", 60, 5000)) return;
     if (typeof message !== "string" || message.length === 0 || message.length > 200) return;
@@ -304,7 +380,7 @@ io.on("connection", (socket) => {
     typeof item.unitPrice === "number" && Number.isFinite(item.unitPrice) && item.unitPrice >= 0 &&
     typeof item.options === "object" && item.options !== null;
 
-  socket.on("cart-state-updated", ({ code, cart }) => {
+  safeOn(socket, "cart-state-updated", ({ code, cart }) => {
     if (kioskOwners.get(code) !== socket.id) return;
     if (isRateLimited(socket, "cart-state-updated", 30, 5000)) return;
     if (!Array.isArray(cart) || cart.length > 50) return;
@@ -313,7 +389,7 @@ io.on("connection", (socket) => {
     io.to(code).emit("cart-state-updated", { cart });
   });
 
-  socket.on("remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
+  safeOn(socket, "remote-voice-order", ({ code, itemId, options, wantsToBuy }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "remote-voice-order", 15, 5000)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
@@ -325,7 +401,7 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨 음성 주문: ${itemId}`);
   });
 
-  socket.on("remote-menu-order", ({ code, itemId, options }) => {
+  safeOn(socket, "remote-menu-order", ({ code, itemId, options }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "remote-menu-order", 15, 5000)) return;
     if (typeof itemId !== "string" || itemId.length > 50) return;
@@ -335,7 +411,7 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨 화면 주문: ${itemId}`);
   });
 
-  socket.on("remote-change-qty", ({ code, cartId, delta }) => {
+  safeOn(socket, "remote-change-qty", ({ code, cartId, delta }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "remote-change-qty", 30, 5000)) return;
     if (typeof cartId !== "string" || cartId.length > 100) return;
@@ -347,7 +423,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("remote-remove-item", ({ code, cartId }) => {
+  safeOn(socket, "remote-remove-item", ({ code, cartId }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "remote-remove-item", 30, 5000)) return;
     if (typeof cartId !== "string" || cartId.length > 100) return;
@@ -358,7 +434,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("remote-clear-cart", (code) => {
+  safeOn(socket, "remote-clear-cart", (code) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "remote-clear-cart", 10, 5000)) return;
 
@@ -368,7 +444,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("remote-checkout-request", ({ code, dineType }) => {
+  safeOn(socket, "remote-checkout-request", ({ code, dineType }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
     if (isRateLimited(socket, "remote-checkout-request", 10, 5000)) return;
     if (dineType !== "dine-in" && dineType !== "takeout") return;
@@ -380,19 +456,19 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨이 결제 요청 (${dineType})`);
   });
 
-  socket.on("kiosk-reset", (code) => {
+  safeOn(socket, "kiosk-reset", (code) => {
     if (kioskOwners.get(code) !== socket.id) return;
     disconnectAllRemotesFromKiosk(code);
     console.log(`[${code}] 결제 완료로 모든 리모컨 연결 강제 해제`);
   });
 
-  socket.on("kiosk-manual-refresh", (code) => {
+  safeOn(socket, "kiosk-manual-refresh", (code) => {
     if (kioskOwners.get(code) !== socket.id) return;
     disconnectAllRemotesFromKiosk(code);
     console.log(`[${code}] 수동 새로고침으로 모든 리모컨 연결 강제 해제`);
   });
 
-  socket.on("disconnect", () => {
+  safeOn(socket, "disconnect", () => {
     joinAttempts.delete(socket.id);
     clearRateLimitBucketsFor(socket.id);
 
