@@ -236,10 +236,16 @@ io.on("connection", (socket) => {
     if (typeof message !== "string" || message.length === 0 || message.length > 200) return;
     if (typeof langId !== "string" || langId.length > 10) return;
 
+    const slots = roomSlots.get(code);
     const targetId = getVoiceTarget(code);
+
     if (targetId) {
       io.to(targetId).emit("kiosk-activity", { message, langId });
-    } else {
+    }
+
+    // direct가 없으면(아무도 없거나 공유만 있으면) 키오스크가 직접 말하고,
+    // direct가 있어도 공유가 같이 연결돼 있으면 키오스크도 함께 말함(공유 참가자가 옆에서 못 듣지 않도록)
+    if (!targetId || (slots && slots.shared)) {
       socket.emit("kiosk-activity-self", { message, langId });
     }
   });
