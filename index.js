@@ -71,6 +71,7 @@ const ORDER_UI_KEYS = [
   "addToCartBtn", "closeBtn",
   "cartTitle", "clearBtn", "cartEmpty", "totalCountLabel", "checkoutBtn",
   "dineTypeTitle", "dineIn", "takeout", "orderSectionTitle",
+  "qtyDecreaseLabel", "qtyIncreaseLabel", "removeItemLabel",
 ];
 
 app.get("/translations/:target", (req, res) => {

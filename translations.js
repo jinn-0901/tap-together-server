@@ -116,6 +116,7 @@ export const TRANSLATIONS = {
       dineTypeTitle: "먹고 가시나요? 포장하시나요?", dineIn: "먹고 가기", takeout: "포장하기",
       orderSectionTitle: "메뉴 주문",
       qtyChangedToast: "{name} {n}개로 변경", removedFromCartToast: "{name} 삭제됨",
+      qtyDecreaseLabel: "수량 줄이기", qtyIncreaseLabel: "수량 늘리기", removeItemLabel: "삭제",
     },
     en: {
       kioskTitle: "☕ Our Cafe Kiosk", subtitle: "Please choose a menu item", codeLabel: "Scan the QR to connect remote control",
@@ -135,6 +136,7 @@ export const TRANSLATIONS = {
       dineTypeTitle: "For here or to go?", dineIn: "For here", takeout: "To go",
       orderSectionTitle: "Order Menu",
       qtyChangedToast: "{name} changed to {n}", removedFromCartToast: "{name} removed",
+      qtyDecreaseLabel: "Decrease quantity", qtyIncreaseLabel: "Increase quantity", removeItemLabel: "Remove",
     },
     zh: {
       kioskTitle: "☕ 我们的咖啡厅", subtitle: "请选择菜单", codeLabel: "扫描二维码以连接远程控制",
@@ -154,6 +156,7 @@ export const TRANSLATIONS = {
       dineTypeTitle: "堂食还是外带？", dineIn: "堂食", takeout: "外带",
       orderSectionTitle: "菜单点餐",
       qtyChangedToast: "{name}数量改为{n}", removedFromCartToast: "已删除{name}",
+      qtyDecreaseLabel: "减少数量", qtyIncreaseLabel: "增加数量", removeItemLabel: "删除",
     },
     ja: {
       kioskTitle: "☕ カフェキオスク", subtitle: "メニューを選択してください", codeLabel: "QRを読み取って遠隔操作を接続",
@@ -173,6 +176,7 @@ export const TRANSLATIONS = {
       dineTypeTitle: "店内でお召し上がりですか？お持ち帰りですか？", dineIn: "店内", takeout: "持ち帰り",
       orderSectionTitle: "メニュー注文",
       qtyChangedToast: "{name}を{n}個に変更", removedFromCartToast: "{name}を削除しました",
+      qtyDecreaseLabel: "数量を減らす", qtyIncreaseLabel: "数量を増やす", removeItemLabel: "削除",
     },
     vi: {
       kioskTitle: "☕ Quán Cà Phê Của Chúng Tôi", subtitle: "Vui lòng chọn món", codeLabel: "Quét QR để kết nối điều khiển từ xa",
@@ -192,6 +196,7 @@ export const TRANSLATIONS = {
       dineTypeTitle: "Dùng tại quán hay mang đi?", dineIn: "Dùng tại quán", takeout: "Mang đi",
       orderSectionTitle: "Đặt món",
       qtyChangedToast: "{name} đổi thành {n}", removedFromCartToast: "Đã xóa {name}",
+      qtyDecreaseLabel: "Giảm số lượng", qtyIncreaseLabel: "Tăng số lượng", removeItemLabel: "Xóa",
     },
   },
 };
