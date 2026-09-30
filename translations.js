@@ -10,7 +10,7 @@ export const TRANSLATIONS = {
       errorInvalidFormat: "잘못된 코드 형식이에요", errorCodeNotFound: "존재하지 않는 코드예요",
       errorAlreadyConnected: "이미 다른 기기가 연결되어 있어요", errorTooManyAttempts: "시도 횟수를 초과했어요. 잠시 후 다시 시도해주세요.",
       featureOnToast: "{name} 켜짐", featureOffToast: "{name} 꺼짐", languageToast: "언어가 {name}(으)로 변경됨",
-      remoteCheckoutToast: "키오스크에서 결제가 완료됩니다", sharedParticipantBadge: "🔗 공유로 참가함",
+      remoteCheckoutToast: "매장 키오스크에서 확인하면 결제가 완료돼요", remoteCheckoutDeclinedToast: "매장에서 결제 요청을 취소했어요", sharedParticipantBadge: "🔗 공유로 참가함",
       features: {
         "easy-mode": { title: "쉬운 화면 모드", desc: "그림을 크게 보여주고 안내 그림을 추가해요" },
         voice: { title: "음성 인식", desc: "말로 키오스크를 조작할 수 있어요" },
@@ -29,7 +29,7 @@ export const TRANSLATIONS = {
       errorInvalidFormat: "Invalid code format", errorCodeNotFound: "This code doesn't exist",
       errorAlreadyConnected: "Another device is already connected", errorTooManyAttempts: "Too many attempts. Please try again later.",
       featureOnToast: "{name} turned on", featureOffToast: "{name} turned off", languageToast: "Language changed to {name}",
-      remoteCheckoutToast: "Payment will complete on the kiosk", sharedParticipantBadge: "🔗 Joined via share link",
+      remoteCheckoutToast: "Confirm on the store kiosk to complete payment", remoteCheckoutDeclinedToast: "The store cancelled the checkout request", sharedParticipantBadge: "🔗 Joined via share link",
       features: {
         "easy-mode": { title: "Easy Screen Mode", desc: "Shows larger images and helpful pictures" },
         voice: { title: "Voice Recognition", desc: "Control the kiosk by speaking" },
@@ -48,7 +48,7 @@ export const TRANSLATIONS = {
       errorInvalidFormat: "代码格式不正确", errorCodeNotFound: "该代码不存在",
       errorAlreadyConnected: "已有其他设备连接", errorTooManyAttempts: "尝试次数过多，请稍后再试。",
       featureOnToast: "{name}已开启", featureOffToast: "{name}已关闭", languageToast: "语言已切换为{name}",
-      remoteCheckoutToast: "付款将在自助终端完成", sharedParticipantBadge: "🔗 通过分享链接加入",
+      remoteCheckoutToast: "需在店内自助终端确认后才能完成付款", remoteCheckoutDeclinedToast: "店内已取消结账请求", sharedParticipantBadge: "🔗 通过分享链接加入",
       features: {
         "easy-mode": { title: "简易屏幕模式", desc: "放大图片并添加引导图示" },
         voice: { title: "语音识别", desc: "可以用语音操作自助终端" },
@@ -67,7 +67,7 @@ export const TRANSLATIONS = {
       errorInvalidFormat: "コード形式が正しくありません", errorCodeNotFound: "存在しないコードです",
       errorAlreadyConnected: "すでに別の端末が接続されています", errorTooManyAttempts: "試行回数を超えました。しばらくしてから再度お試しください。",
       featureOnToast: "{name}オン", featureOffToast: "{name}オフ", languageToast: "言語が{name}に変更されました",
-      remoteCheckoutToast: "お会計はキオスクで完了します", sharedParticipantBadge: "🔗 共有リンクから参加",
+      remoteCheckoutToast: "店舗のキオスクで確認すると決済が完了します", remoteCheckoutDeclinedToast: "店舗側で会計リクエストをキャンセルしました", sharedParticipantBadge: "🔗 共有リンクから参加",
       features: {
         "easy-mode": { title: "かんたん画面モード", desc: "絵を大きく表示し、案内図を追加します" },
         voice: { title: "音声認識", desc: "話しかけてキオスクを操作できます" },
@@ -86,7 +86,7 @@ export const TRANSLATIONS = {
       errorInvalidFormat: "Định dạng mã không hợp lệ", errorCodeNotFound: "Mã này không tồn tại",
       errorAlreadyConnected: "Đã có thiết bị khác được kết nối", errorTooManyAttempts: "Quá nhiều lần thử. Vui lòng thử lại sau.",
       featureOnToast: "{name} đã bật", featureOffToast: "{name} đã tắt", languageToast: "Đã đổi ngôn ngữ sang {name}",
-      remoteCheckoutToast: "Thanh toán sẽ hoàn tất trên kiosk", sharedParticipantBadge: "🔗 Tham gia qua liên kết chia sẻ",
+      remoteCheckoutToast: "Xác nhận tại kiosk cửa hàng để hoàn tất thanh toán", remoteCheckoutDeclinedToast: "Cửa hàng đã hủy yêu cầu thanh toán", sharedParticipantBadge: "🔗 Tham gia qua liên kết chia sẻ",
       features: {
         "easy-mode": { title: "Chế độ màn hình dễ dùng", desc: "Hiển thị hình ảnh lớn hơn và thêm hình minh họa" },
         voice: { title: "Nhận diện giọng nói", desc: "Điều khiển kiosk bằng giọng nói" },
@@ -117,6 +117,9 @@ export const TRANSLATIONS = {
       orderSectionTitle: "메뉴 주문",
       qtyChangedToast: "{name} {n}개로 변경", removedFromCartToast: "{name} 삭제됨",
       qtyDecreaseLabel: "수량 줄이기", qtyIncreaseLabel: "수량 늘리기", removeItemLabel: "삭제",
+      remoteCheckoutConfirmTitle: "가족이 결제를 요청했어요", remoteCheckoutConfirmDesc: "아래에서 확인해야 결제가 진행돼요",
+      confirmBtn: "확인하고 결제하기", cancelBtn: "취소", remoteCheckoutConfirmPrompt: "가족이 결제를 요청했어요. 확인해 주세요",
+      remoteCheckoutDeclinedLocal: "결제 요청을 취소했어요",
     },
     en: {
       kioskTitle: "☕ Our Cafe Kiosk", subtitle: "Please choose a menu item", codeLabel: "Scan the QR to connect remote control",
@@ -137,6 +140,9 @@ export const TRANSLATIONS = {
       orderSectionTitle: "Order Menu",
       qtyChangedToast: "{name} changed to {n}", removedFromCartToast: "{name} removed",
       qtyDecreaseLabel: "Decrease quantity", qtyIncreaseLabel: "Increase quantity", removeItemLabel: "Remove",
+      remoteCheckoutConfirmTitle: "Family requested checkout", remoteCheckoutConfirmDesc: "Confirm below to proceed with payment",
+      confirmBtn: "Confirm & pay", cancelBtn: "Cancel", remoteCheckoutConfirmPrompt: "Family requested checkout. Please confirm.",
+      remoteCheckoutDeclinedLocal: "Checkout request cancelled",
     },
     zh: {
       kioskTitle: "☕ 我们的咖啡厅", subtitle: "请选择菜单", codeLabel: "扫描二维码以连接远程控制",
@@ -157,6 +163,9 @@ export const TRANSLATIONS = {
       orderSectionTitle: "菜单点餐",
       qtyChangedToast: "{name}数量改为{n}", removedFromCartToast: "已删除{name}",
       qtyDecreaseLabel: "减少数量", qtyIncreaseLabel: "增加数量", removeItemLabel: "删除",
+      remoteCheckoutConfirmTitle: "家人请求结账", remoteCheckoutConfirmDesc: "请在下方确认后才能付款",
+      confirmBtn: "确认并付款", cancelBtn: "取消", remoteCheckoutConfirmPrompt: "家人请求结账，请确认",
+      remoteCheckoutDeclinedLocal: "已取消结账请求",
     },
     ja: {
       kioskTitle: "☕ カフェキオスク", subtitle: "メニューを選択してください", codeLabel: "QRを読み取って遠隔操作を接続",
@@ -177,6 +186,9 @@ export const TRANSLATIONS = {
       orderSectionTitle: "メニュー注文",
       qtyChangedToast: "{name}を{n}個に変更", removedFromCartToast: "{name}を削除しました",
       qtyDecreaseLabel: "数量を減らす", qtyIncreaseLabel: "数量を増やす", removeItemLabel: "削除",
+      remoteCheckoutConfirmTitle: "家族が会計を要求しました", remoteCheckoutConfirmDesc: "下で確認すると決済が進みます",
+      confirmBtn: "確認して決済する", cancelBtn: "キャンセル", remoteCheckoutConfirmPrompt: "家族が会計を要求しました。確認してください",
+      remoteCheckoutDeclinedLocal: "会計リクエストをキャンセルしました",
     },
     vi: {
       kioskTitle: "☕ Quán Cà Phê Của Chúng Tôi", subtitle: "Vui lòng chọn món", codeLabel: "Quét QR để kết nối điều khiển từ xa",
@@ -197,6 +209,9 @@ export const TRANSLATIONS = {
       orderSectionTitle: "Đặt món",
       qtyChangedToast: "{name} đổi thành {n}", removedFromCartToast: "Đã xóa {name}",
       qtyDecreaseLabel: "Giảm số lượng", qtyIncreaseLabel: "Tăng số lượng", removeItemLabel: "Xóa",
+      remoteCheckoutConfirmTitle: "Gia đình đã yêu cầu thanh toán", remoteCheckoutConfirmDesc: "Xác nhận bên dưới để tiến hành thanh toán",
+      confirmBtn: "Xác nhận & thanh toán", cancelBtn: "Hủy", remoteCheckoutConfirmPrompt: "Gia đình đã yêu cầu thanh toán. Vui lòng xác nhận",
+      remoteCheckoutDeclinedLocal: "Đã hủy yêu cầu thanh toán",
     },
   },
 };

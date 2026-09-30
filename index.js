@@ -474,6 +474,15 @@ io.on("connection", (socket) => {
     console.log(`[${code}] 리모컨이 결제 요청 (${dineType})`);
   });
 
+  // 매장 키오스크가 원격 결제 요청을 취소(거절)했을 때 리모컨들에게 알림
+  safeOn(socket, "remote-checkout-declined", (code) => {
+    if (kioskOwners.get(code) !== socket.id) return;
+    if (isRateLimited(socket, "remote-checkout-declined", 10, 5000)) return;
+
+    io.to(code).emit("remote-checkout-declined");
+    console.log(`[${code}] 키오스크가 원격 결제 요청을 취소함`);
+  });
+
   safeOn(socket, "kiosk-reset", (code) => {
     if (kioskOwners.get(code) !== socket.id) return;
     disconnectAllRemotesFromKiosk(code);
