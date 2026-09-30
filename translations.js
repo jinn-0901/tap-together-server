@@ -120,6 +120,7 @@ export const TRANSLATIONS = {
       remoteCheckoutConfirmTitle: "가족이 결제를 요청했어요", remoteCheckoutConfirmDesc: "아래에서 확인해야 결제가 진행돼요",
       confirmBtn: "확인하고 결제하기", cancelBtn: "취소", remoteCheckoutConfirmPrompt: "가족이 결제를 요청했어요. 확인해 주세요",
       remoteCheckoutDeclinedLocal: "결제 요청을 취소했어요",
+      remoteConnectedIndicator: "🔴 가족이 원격으로 연결되어 있어요",
     },
     en: {
       kioskTitle: "☕ Our Cafe Kiosk", subtitle: "Please choose a menu item", codeLabel: "Scan the QR to connect remote control",
@@ -143,6 +144,7 @@ export const TRANSLATIONS = {
       remoteCheckoutConfirmTitle: "Family requested checkout", remoteCheckoutConfirmDesc: "Confirm below to proceed with payment",
       confirmBtn: "Confirm & pay", cancelBtn: "Cancel", remoteCheckoutConfirmPrompt: "Family requested checkout. Please confirm.",
       remoteCheckoutDeclinedLocal: "Checkout request cancelled",
+      remoteConnectedIndicator: "🔴 A family member is connected remotely",
     },
     zh: {
       kioskTitle: "☕ 我们的咖啡厅", subtitle: "请选择菜单", codeLabel: "扫描二维码以连接远程控制",
@@ -166,6 +168,7 @@ export const TRANSLATIONS = {
       remoteCheckoutConfirmTitle: "家人请求结账", remoteCheckoutConfirmDesc: "请在下方确认后才能付款",
       confirmBtn: "确认并付款", cancelBtn: "取消", remoteCheckoutConfirmPrompt: "家人请求结账，请确认",
       remoteCheckoutDeclinedLocal: "已取消结账请求",
+      remoteConnectedIndicator: "🔴 家人正在远程连接",
     },
     ja: {
       kioskTitle: "☕ カフェキオスク", subtitle: "メニューを選択してください", codeLabel: "QRを読み取って遠隔操作を接続",
@@ -189,6 +192,7 @@ export const TRANSLATIONS = {
       remoteCheckoutConfirmTitle: "家族が会計を要求しました", remoteCheckoutConfirmDesc: "下で確認すると決済が進みます",
       confirmBtn: "確認して決済する", cancelBtn: "キャンセル", remoteCheckoutConfirmPrompt: "家族が会計を要求しました。確認してください",
       remoteCheckoutDeclinedLocal: "会計リクエストをキャンセルしました",
+      remoteConnectedIndicator: "🔴 家族が遠隔で接続しています",
     },
     vi: {
       kioskTitle: "☕ Quán Cà Phê Của Chúng Tôi", subtitle: "Vui lòng chọn món", codeLabel: "Quét QR để kết nối điều khiển từ xa",
@@ -212,6 +216,7 @@ export const TRANSLATIONS = {
       remoteCheckoutConfirmTitle: "Gia đình đã yêu cầu thanh toán", remoteCheckoutConfirmDesc: "Xác nhận bên dưới để tiến hành thanh toán",
       confirmBtn: "Xác nhận & thanh toán", cancelBtn: "Hủy", remoteCheckoutConfirmPrompt: "Gia đình đã yêu cầu thanh toán. Vui lòng xác nhận",
       remoteCheckoutDeclinedLocal: "Đã hủy yêu cầu thanh toán",
+      remoteConnectedIndicator: "🔴 Người thân đang kết nối từ xa",
     },
   },
 };
