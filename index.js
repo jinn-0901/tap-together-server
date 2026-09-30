@@ -299,15 +299,16 @@ io.on("connection", (socket) => {
     }
 
     const slots = getSlots(code);
-    const slotKey = asShared ? "shared" : "direct";
+    let slotKey = asShared ? "shared" : "direct";
 
-    if (slotKey === "direct") {
-      // direct는 음성 안내를 독점으로 받는 자리라 한 명만 허용
-      if (slots.direct && slots.direct !== socket.id) {
-        socket.emit("join-error", "ALREADY_CONNECTED");
-        return;
-      }
-    } else if (!slots.shared.has(socket.id) && slots.shared.size >= MAX_SHARED_PER_ROOM) {
+    if (slotKey === "direct" && slots.direct && slots.direct !== socket.id) {
+      // 이미 direct 자리(음성 안내 독점)를 다른 사람이 쓰고 있으면 튕겨내지 않고
+      // 공유 참가자로 자동 전환해서 들어가게 함 — 코드만 알면 같이 지켜볼 수 있어야
+      // 자연스러움(가족이 이미 접속 중인데 다른 가족이 같은 코드로 또 들어오는 상황 등)
+      slotKey = "shared";
+    }
+
+    if (slotKey === "shared" && !slots.shared.has(socket.id) && slots.shared.size >= MAX_SHARED_PER_ROOM) {
       socket.emit("join-error", "ALREADY_CONNECTED");
       return;
     }
