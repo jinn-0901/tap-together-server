@@ -111,7 +111,12 @@ const rateLimitBuckets = new Map();
 const getClientIp = (socket) => {
   const forwarded = socket.handshake.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0].trim();
+    // 프록시(Render 등)는 원래 있던 x-forwarded-for 뒤에 "자기가 실제로 본 접속 IP"를
+    // 붙여서 넘김. 앞쪽 값은 클라이언트가 요청 헤더에 마음대로 적어 보낼 수 있는
+    // 위조 가능한 값이라, 맨 앞([0])이 아니라 맨 뒤(우리 프록시 바로 앞 홉)를 써야
+    // IP 제한을 헤더 위조로 우회하지 못함
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
   }
   return socket.handshake.address || "unknown";
 };
