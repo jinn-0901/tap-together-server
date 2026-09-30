@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
 import { TRANSLATIONS } from "./translations.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -97,6 +98,9 @@ app.get("/translations/:target", (req, res) => {
 
 const kioskOwners = new Map();
 const roomSlots = new Map();
+// code -> 그 방의 direct 연결자가 발급받은 공유 링크 토큰. 이 토큰이 있어야만
+// join-room의 asShared 요청을 진짜로 받아줌(그냥 ?shared=1 붙이는 걸로는 안 됨)
+const shareTokens = new Map();
 const joinAttempts = new Map();
 const ipJoinAttempts = new Map();
 const rateLimitBuckets = new Map();
@@ -244,6 +248,7 @@ const disconnectAllRemotesFromKiosk = (code) => {
   });
 
   roomSlots.delete(code);
+  shareTokens.delete(code);
 };
 
 io.on("connection", (socket) => {
@@ -266,7 +271,7 @@ io.on("connection", (socket) => {
     console.log(`새 코드 발급: ${code} (키오스크: ${socket.id})`);
   });
 
-  safeOn(socket, "join-room", (code, asShared) => {
+  safeOn(socket, "join-room", (code, asShared, shareToken) => {
     if (isIpJoinLimited(getClientIp(socket))) {
       socket.emit("join-error", "TOO_MANY_ATTEMPTS");
       return;
@@ -299,7 +304,12 @@ io.on("connection", (socket) => {
     }
 
     const slots = getSlots(code);
-    let slotKey = asShared ? "shared" : "direct";
+    // asShared=1은 그냥 클라이언트가 보내는 값이라 주소창 조작만으로도 위조 가능함 —
+    // 서버가 그 방의 direct 연결자에게 발급해준 토큰과 일치할 때만 "진짜 공유 링크로
+    // 들어왔다"고 인정하고, 아니면 무시하고 direct 요청으로 취급함(그래도 direct가
+    // 차있으면 위의 자동 전환으로 결국 공유가 됨)
+    const hasValidShareToken = !!asShared && !!shareToken && shareTokens.get(code) === shareToken;
+    let slotKey = hasValidShareToken ? "shared" : "direct";
 
     if (slotKey === "direct" && slots.direct && slots.direct !== socket.id) {
       // 이미 direct 자리(음성 안내 독점)를 다른 사람이 쓰고 있으면 튕겨내지 않고
@@ -341,6 +351,22 @@ io.on("connection", (socket) => {
     }
 
     console.log(`${socket.id}가 방 [${code}]에 ${slotKey === "shared" ? "공유 참가자" : "직접 연결자"}로 참가함`);
+  });
+
+  // direct 연결자만 공유 링크 토큰을 발급받을 수 있음 — 이걸 링크에 담아 보내야
+  // 받는 사람이 join-room에서 진짜 공유 참가자로 인정됨(위조 방지)
+  safeOn(socket, "request-share-token", (code) => {
+    if (isRateLimited(socket, "request-share-token", 10, 5000)) return;
+
+    const slots = roomSlots.get(code);
+    if (!slots || slots.direct !== socket.id) return;
+
+    let token = shareTokens.get(code);
+    if (!token) {
+      token = crypto.randomBytes(9).toString("base64url");
+      shareTokens.set(code, token);
+    }
+    socket.emit("share-token-issued", { code, token });
   });
 
   safeOn(socket, "leave-room", (code) => {
