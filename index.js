@@ -204,6 +204,9 @@ const leaveSlot = (socket, code) => {
   if (slots.direct === socket.id) {
     slots.direct = null;
     changed = true;
+    // direct였던 사람이 나가면 그 사람이 발급받았던 공유 토큰도 같이 폐기함 —
+    // 안 그러면 다음에 새로 direct가 된 사람 모르게 예전 링크로 계속 공유 참가자가 들어올 수 있음
+    shareTokens.delete(code);
   }
   if (slots.shared.has(socket.id)) {
     slots.shared.delete(socket.id);
@@ -255,6 +258,10 @@ io.on("connection", (socket) => {
   console.log(`클라이언트 연결됨: ${socket.id}`);
 
   safeOn(socket, "request-kiosk-code", (previousCode) => {
+    // 정상 사용(최초 접속, 10분 자동 만료, 수동 새로고침)은 이 정도로 절대 안 걸리고,
+    // 악성/오작동 클라이언트가 계속 새 코드를 요청해서 kioskOwners를 흔드는 것만 막음
+    if (isRateLimited(socket, "request-kiosk-code", 10, 5000)) return;
+
     if (previousCode && kioskOwners.get(previousCode) === socket.id) {
       kioskOwners.delete(previousCode);
       disconnectAllRemotesFromKiosk(previousCode);
@@ -306,16 +313,16 @@ io.on("connection", (socket) => {
     const slots = getSlots(code);
     // asShared=1은 그냥 클라이언트가 보내는 값이라 주소창 조작만으로도 위조 가능함 —
     // 서버가 그 방의 direct 연결자에게 발급해준 토큰과 일치할 때만 "진짜 공유 링크로
-    // 들어왔다"고 인정하고, 아니면 무시하고 direct 요청으로 취급함(그래도 direct가
-    // 차있으면 위의 자동 전환으로 결국 공유가 됨)
+    // 들어왔다"고 인정함. 토큰이 없거나 틀리면 direct 요청으로 취급하고, 이미 direct가
+    // 차있으면(=대부분의 상황) 공유로 자동 전환해주지 않고 그냥 튕겨냄 — "코드만 알면
+    // 자동으로 공유가 되는" 예전 동작은 이 토큰 검증을 사실상 무력화시키므로 뺐음
+    // (direct 자리가 정말 비어있을 때만 코드로 direct 진입 가능, 공유는 반드시 토큰 필요)
     const hasValidShareToken = !!asShared && !!shareToken && shareTokens.get(code) === shareToken;
     let slotKey = hasValidShareToken ? "shared" : "direct";
 
     if (slotKey === "direct" && slots.direct && slots.direct !== socket.id) {
-      // 이미 direct 자리(음성 안내 독점)를 다른 사람이 쓰고 있으면 튕겨내지 않고
-      // 공유 참가자로 자동 전환해서 들어가게 함 — 코드만 알면 같이 지켜볼 수 있어야
-      // 자연스러움(가족이 이미 접속 중인데 다른 가족이 같은 코드로 또 들어오는 상황 등)
-      slotKey = "shared";
+      socket.emit("join-error", "ALREADY_CONNECTED");
+      return;
     }
 
     if (slotKey === "shared" && !slots.shared.has(socket.id) && slots.shared.size >= MAX_SHARED_PER_ROOM) {
@@ -441,6 +448,7 @@ io.on("connection", (socket) => {
     // options가 null/객체가 아니면(예: 위조된 payload) 그대로 흘려보내지 않음 —
     // 키오스크 쪽 computeUnitPrice(item, options)가 options.size 등을 읽다가 죽을 수 있음
     if (typeof options !== "object" || options === null) return;
+    if (typeof wantsToBuy !== "boolean") return;
 
     io.to(code).emit("voice-order-received", { itemId, options, wantsToBuy });
     console.log(`[${code}] 리모컨 음성 주문: ${itemId}`);
