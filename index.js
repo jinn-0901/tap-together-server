@@ -168,9 +168,13 @@ const generateUniqueCode = () => {
   return code;
 };
 
+// 공유 참가자는 몇 명이든 같이 볼 수 있어야 자연스러움(가족·친구가 같이 돕는 상황 등).
+// 반대로 direct는 음성 안내를 독점으로 받는 자리라서 1명으로 유지함.
+const MAX_SHARED_PER_ROOM = 30;
+
 const getSlots = (code) => {
   if (!roomSlots.has(code)) {
-    roomSlots.set(code, { direct: null, shared: null });
+    roomSlots.set(code, { direct: null, shared: new Set() });
   }
   return roomSlots.get(code);
 };
@@ -184,7 +188,7 @@ const getVoiceTarget = (code) => {
 
 const isRemoteOfRoom = (code, socketId) => {
   const slots = roomSlots.get(code);
-  return !!(slots && (slots.direct === socketId || slots.shared === socketId));
+  return !!(slots && (slots.direct === socketId || slots.shared.has(socketId)));
 };
 
 const leaveSlot = (socket, code) => {
@@ -197,25 +201,27 @@ const leaveSlot = (socket, code) => {
     slots.direct = null;
     changed = true;
   }
-  if (slots.shared === socket.id) {
-    slots.shared = null;
+  if (slots.shared.has(socket.id)) {
+    slots.shared.delete(socket.id);
     changed = true;
   }
 
   if (changed) {
     socket.leave(code);
-    if (!slots.direct && !slots.shared) {
+    if (!slots.direct && slots.shared.size === 0) {
       io.to(code).emit("all-remotes-left");
     } else {
       io.to(code).emit("remote-roster-changed", {
         hasDirect: !!slots.direct,
-        hasShared: !!slots.shared,
+        hasShared: slots.shared.size > 0,
+        sharedCount: slots.shared.size,
       });
       const kioskSocketId = kioskOwners.get(code);
       if (kioskSocketId) {
         io.to(kioskSocketId).emit("remote-roster-changed-for-kiosk", {
           hasDirect: !!slots.direct,
-          hasShared: !!slots.shared,
+          hasShared: slots.shared.size > 0,
+          sharedCount: slots.shared.size,
         });
       }
     }
@@ -226,7 +232,7 @@ const disconnectAllRemotesFromKiosk = (code) => {
   const slots = roomSlots.get(code);
   if (!slots) return;
 
-  [slots.direct, slots.shared].forEach((sid) => {
+  [slots.direct, ...slots.shared].forEach((sid) => {
     if (!sid) return;
     io.to(sid).emit("kiosk-left");
     const s = io.sockets.sockets.get(sid);
@@ -295,7 +301,13 @@ io.on("connection", (socket) => {
     const slots = getSlots(code);
     const slotKey = asShared ? "shared" : "direct";
 
-    if (slots[slotKey] && slots[slotKey] !== socket.id) {
+    if (slotKey === "direct") {
+      // direct는 음성 안내를 독점으로 받는 자리라 한 명만 허용
+      if (slots.direct && slots.direct !== socket.id) {
+        socket.emit("join-error", "ALREADY_CONNECTED");
+        return;
+      }
+    } else if (!slots.shared.has(socket.id) && slots.shared.size >= MAX_SHARED_PER_ROOM) {
       socket.emit("join-error", "ALREADY_CONNECTED");
       return;
     }
@@ -304,7 +316,11 @@ io.on("connection", (socket) => {
       leaveSlot(socket, socket.data.remoteCode);
     }
 
-    slots[slotKey] = socket.id;
+    if (slotKey === "direct") {
+      slots.direct = socket.id;
+    } else {
+      slots.shared.add(socket.id);
+    }
     socket.data.role = "remote";
     socket.data.remoteCode = code;
     socket.data.remoteRole = slotKey;
@@ -317,7 +333,8 @@ io.on("connection", (socket) => {
     if (kioskSocketId) {
       io.to(kioskSocketId).emit("remote-roster-changed-for-kiosk", {
         hasDirect: !!slots.direct,
-        hasShared: !!slots.shared,
+        hasShared: slots.shared.size > 0,
+        sharedCount: slots.shared.size,
       });
       io.to(kioskSocketId).emit("request-cart-state-for-new-remote");
     }
@@ -365,8 +382,8 @@ io.on("connection", (socket) => {
     }
 
     // direct가 없으면(아무도 없거나 공유만 있으면) 키오스크가 직접 말하고,
-    // direct가 있어도 공유가 같이 연결돼 있으면 키오스크도 함께 말함(공유 참가자가 옆에서 못 듣지 않도록)
-    if (!targetId || (slots && slots.shared)) {
+    // direct가 있어도 공유 참가자가 있으면 키오스크도 함께 말함(공유 참가자들이 옆에서 못 듣지 않도록)
+    if (!targetId || (slots && slots.shared.size > 0)) {
       socket.emit("kiosk-activity-self", { message, langId });
     }
   });
