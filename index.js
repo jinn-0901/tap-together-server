@@ -360,6 +360,9 @@ io.on("connection", (socket) => {
         sharedCount: slots.shared.size,
       });
       io.to(kioskSocketId).emit("request-cart-state-for-new-remote");
+      // 새로 들어온 리모컨이 자기 로컬 저장값(꺼짐)으로 시작하지 않고, 지금
+      // 키오스크가 쉬운 화면 모드인지를 알 수 있게 키오스크에게 물어봄
+      io.to(kioskSocketId).emit("request-easy-mode-for-new-remote", { targetSocketId: socket.id });
     }
 
     console.log(`${socket.id}가 방 [${code}]에 ${slotKey === "shared" ? "공유 참가자" : "직접 연결자"}로 참가함`);
@@ -386,6 +389,19 @@ io.on("connection", (socket) => {
     socket.data.remoteCode = null;
     socket.data.remoteRole = null;
     console.log(`${socket.id}가 방 [${code}]에서 스스로 나감`);
+  });
+
+  // 키오스크가 "새로 들어온 리모컨에게 쉬운 화면 모드 상태 알려줘" 요청에 답한 걸
+  // 그 리모컨 한 명에게만 전달함(방 전체에 뿌리면 이미 들어와있던 다른 리모컨들의
+  // 설정까지 매번 덮어써버리게 됨)
+  safeOn(socket, "easy-mode-for-new-remote", ({ code, targetSocketId, on }) => {
+    if (kioskOwners.get(code) !== socket.id) return;
+    if (isRateLimited(socket, "easy-mode-for-new-remote", 30, 5000)) return;
+    if (typeof targetSocketId !== "string") return;
+    if (typeof on !== "boolean") return;
+    if (!isRemoteOfRoom(code, targetSocketId)) return;
+
+    io.to(targetSocketId).emit("kiosk-easy-mode-synced", { on });
   });
 
   safeOn(socket, "toggle-feature", ({ code, featureId, on }) => {
