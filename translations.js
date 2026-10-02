@@ -11,7 +11,7 @@ export const TRANSLATIONS = {
       errorAlreadyConnected: "이미 다른 기기가 연결되어 있어요", errorTooManyAttempts: "시도 횟수를 초과했어요. 잠시 후 다시 시도해주세요.",
       featureOnToast: "{name} 켜짐", featureOffToast: "{name} 꺼짐", languageToast: "언어가 {name}(으)로 변경됨",
       remoteCheckoutToast: "매장 키오스크에서 확인하면 결제가 완료돼요", remoteCheckoutDeclinedToast: "매장에서 결제 요청을 취소했어요", sharedParticipantBadge: "🔗 공유로 참가함", familyJoinedToast: "다른 가족이 함께 접속했어요", sharedCountLabel: "함께 보는 중 {n}명",
-      shareBtnLabel: "공유", shareCopiedLabel: "복사됨",
+      shareBtnLabel: "공유", shareCopiedLabel: "복사됨", sharedCannotToggleToast: "공유 참가자는 이 설정을 바꿀 수 없어요",
       features: {
         "easy-mode": { title: "쉬운 화면 모드", desc: "그림을 크게 보여주고 안내 그림을 추가해요" },
         voice: { title: "음성 인식", desc: "말로 키오스크를 조작할 수 있어요" },
@@ -31,7 +31,7 @@ export const TRANSLATIONS = {
       errorAlreadyConnected: "Another device is already connected", errorTooManyAttempts: "Too many attempts. Please try again later.",
       featureOnToast: "{name} turned on", featureOffToast: "{name} turned off", languageToast: "Language changed to {name}",
       remoteCheckoutToast: "Confirm on the store kiosk to complete payment", remoteCheckoutDeclinedToast: "The store cancelled the checkout request", sharedParticipantBadge: "🔗 Joined via share link", familyJoinedToast: "Another family member joined", sharedCountLabel: "{n} watching together",
-      shareBtnLabel: "Share", shareCopiedLabel: "Copied",
+      shareBtnLabel: "Share", shareCopiedLabel: "Copied", sharedCannotToggleToast: "Shared participants can't change this setting",
       features: {
         "easy-mode": { title: "Easy Screen Mode", desc: "Shows larger images and helpful pictures" },
         voice: { title: "Voice Recognition", desc: "Control the kiosk by speaking" },
@@ -51,7 +51,7 @@ export const TRANSLATIONS = {
       errorAlreadyConnected: "已有其他设备连接", errorTooManyAttempts: "尝试次数过多，请稍后再试。",
       featureOnToast: "{name}已开启", featureOffToast: "{name}已关闭", languageToast: "语言已切换为{name}",
       remoteCheckoutToast: "需在店内自助终端确认后才能完成付款", remoteCheckoutDeclinedToast: "店内已取消结账请求", sharedParticipantBadge: "🔗 通过分享链接加入", familyJoinedToast: "另一位家人也加入了", sharedCountLabel: "共 {n} 人一起查看",
-      shareBtnLabel: "分享", shareCopiedLabel: "已复制",
+      shareBtnLabel: "分享", shareCopiedLabel: "已复制", sharedCannotToggleToast: "共享参与者无法更改此设置",
       features: {
         "easy-mode": { title: "简易屏幕模式", desc: "放大图片并添加引导图示" },
         voice: { title: "语音识别", desc: "可以用语音操作自助终端" },
@@ -71,7 +71,7 @@ export const TRANSLATIONS = {
       errorAlreadyConnected: "すでに別の端末が接続されています", errorTooManyAttempts: "試行回数を超えました。しばらくしてから再度お試しください。",
       featureOnToast: "{name}オン", featureOffToast: "{name}オフ", languageToast: "言語が{name}に変更されました",
       remoteCheckoutToast: "店舗のキオスクで確認すると決済が完了します", remoteCheckoutDeclinedToast: "店舗側で会計リクエストをキャンセルしました", sharedParticipantBadge: "🔗 共有リンクから参加", familyJoinedToast: "別のご家族が参加しました", sharedCountLabel: "一緒に見ている人 {n}人",
-      shareBtnLabel: "共有", shareCopiedLabel: "コピーしました",
+      shareBtnLabel: "共有", shareCopiedLabel: "コピーしました", sharedCannotToggleToast: "共有参加者はこの設定を変更できません",
       features: {
         "easy-mode": { title: "かんたん画面モード", desc: "絵を大きく表示し、案内図を追加します" },
         voice: { title: "音声認識", desc: "話しかけてキオスクを操作できます" },
@@ -91,7 +91,7 @@ export const TRANSLATIONS = {
       errorAlreadyConnected: "Đã có thiết bị khác được kết nối", errorTooManyAttempts: "Quá nhiều lần thử. Vui lòng thử lại sau.",
       featureOnToast: "{name} đã bật", featureOffToast: "{name} đã tắt", languageToast: "Đã đổi ngôn ngữ sang {name}",
       remoteCheckoutToast: "Xác nhận tại kiosk cửa hàng để hoàn tất thanh toán", remoteCheckoutDeclinedToast: "Cửa hàng đã hủy yêu cầu thanh toán", sharedParticipantBadge: "🔗 Tham gia qua liên kết chia sẻ", familyJoinedToast: "Một thành viên khác trong gia đình đã tham gia", sharedCountLabel: "{n} người đang xem cùng",
-      shareBtnLabel: "Chia sẻ", shareCopiedLabel: "Đã sao chép",
+      shareBtnLabel: "Chia sẻ", shareCopiedLabel: "Đã sao chép", sharedCannotToggleToast: "Người tham gia chia sẻ không thể thay đổi cài đặt này",
       features: {
         "easy-mode": { title: "Chế độ màn hình dễ dùng", desc: "Hiển thị hình ảnh lớn hơn và thêm hình minh họa" },
         voice: { title: "Nhận diện giọng nói", desc: "Điều khiển kiosk bằng giọng nói" },

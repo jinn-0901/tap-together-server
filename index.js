@@ -406,6 +406,11 @@ io.on("connection", (socket) => {
 
   safeOn(socket, "toggle-feature", ({ code, featureId, on }) => {
     if (!isRemoteOfRoom(code, socket.id)) return;
+    // 큰글씨/고대비/음성안내/쉬운화면은 실제 키오스크 화면을 바꾸는 설정이라
+    // direct(어르신을 직접 돕는 사람)만 바꿀 수 있게 함 — 공유 참가자는 버튼
+    // 자체를 화면에서 안 보여주지만, 음성 명령처럼 버튼을 거치지 않는 경로도
+    // 있어서 서버에서도 한 번 더 막음
+    if (socket.data.remoteRole !== "direct") return;
     if (isRateLimited(socket, "toggle-feature", 20, 5000)) return;
     if (!KNOWN_FEATURE_IDS.has(featureId)) return;
     if (typeof on !== "boolean") return;
